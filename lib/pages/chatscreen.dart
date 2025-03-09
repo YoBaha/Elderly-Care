@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:logger/Logger.dart';
+import 'package:logger/logger.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
@@ -61,10 +61,8 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     _generativeModel = GenerativeModel(
-      model: 'gemini-2.0-flash', // Updated model name
+      model: 'gemini-2.0-flash',
       apiKey: apiKey,
-
-      // apiVersion: 'v1beta',     // Explicitly specify API version
     );
   }
 
@@ -153,11 +151,8 @@ class _ChatScreenState extends State<ChatScreen> {
           await file.writeAsBytes(ttsResponse.bodyBytes);
           logger.i('Audio file saved to: ${file.path}');
 
-          // Verify file existence
           if (await file.exists()) {
             logger.i('File exists, attempting playback...');
-
-            // Update UI and play audio
             setState(() {
               final messageIndex = _messages.indexWhere(
                   (m) => m['text'] == aiResponse && m['audioPath'] == null);
@@ -165,7 +160,6 @@ class _ChatScreenState extends State<ChatScreen> {
                 _messages[messageIndex]['audioPath'] = file.path;
               }
             });
-
             await _audioPlayer.play(DeviceFileSource(file.path));
             logger.i('Playback started successfully');
           } else {
@@ -177,7 +171,6 @@ class _ChatScreenState extends State<ChatScreen> {
           _addMessage("Audio file creation error", false);
         }
       } else {
-        // Log detailed error response
         final errorBody = utf8.decode(ttsResponse.bodyBytes);
         logger.e('ElevenLabs Error: $errorBody');
         _addMessage(
@@ -198,7 +191,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
+        backgroundColor: const Color(0xFF199A8E),
         title: const Text("Chat Vocal"),
         actions: [
           IconButton(
@@ -213,6 +208,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          // Top options row for language and voice
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
@@ -233,7 +229,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 8.0),
                   child: Text(
                     _selectedVoice != null
-                        ? 'Voice: ${_selectedVoice!}' // Display voice ID
+                        ? 'Voice: ${_selectedVoice!}'
                         : 'No voice selected',
                     style: TextStyle(
                       color: _selectedVoice != null ? Colors.green : Colors.red,
@@ -243,19 +239,20 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             ),
           ),
+          // Chat messages list
           Expanded(
             child: ListView.builder(
               reverse: true,
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final message = _messages[index];
+                bool isUser = message['isUser'];
                 return Align(
-                  alignment: message['isUser']
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
+                  alignment:
+                      isUser ? Alignment.centerRight : Alignment.centerLeft,
                   child: GestureDetector(
                     onTap: () async {
-                      if (!message['isUser'] && message['audioPath'] != null) {
+                      if (!isUser && message['audioPath'] != null) {
                         final file = File(message['audioPath']);
                         if (await file.exists()) {
                           await _audioPlayer.play(DeviceFileSource(file.path));
@@ -265,18 +262,33 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Container(
                       margin: const EdgeInsets.symmetric(
                           vertical: 4, horizontal: 8),
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 10, horizontal: 16),
+                      constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.75),
                       decoration: BoxDecoration(
-                        color: message['isUser']
-                            ? const Color(0xFF199A8E)
-                            : Colors.grey[300],
-                        borderRadius: BorderRadius.circular(16),
+                        color: isUser ? const Color(0xFF199A8E) : Colors.white,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                          bottomLeft:
+                              isUser ? Radius.circular(16) : Radius.circular(0),
+                          bottomRight:
+                              isUser ? Radius.circular(0) : Radius.circular(16),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            offset: Offset(0, 2),
+                            blurRadius: 4,
+                          ),
+                        ],
                       ),
                       child: Text(
                         message['text'],
                         style: TextStyle(
-                          color:
-                              message['isUser'] ? Colors.white : Colors.black,
+                          color: isUser ? Colors.white : Colors.black87,
+                          fontSize: 16,
                         ),
                       ),
                     ),
@@ -285,13 +297,15 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
+          // Microphone button
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: IconButton(
               icon: Icon(
                 _speech.isListening ? Icons.mic : Icons.mic_none,
                 size: 50,
-                color: _speech.isListening ? Colors.red : Colors.blue,
+                color:
+                    _speech.isListening ? Colors.red : const Color(0xFF199A8E),
               ),
               onPressed: _speech.isListening ? _stopListening : _startListening,
             ),

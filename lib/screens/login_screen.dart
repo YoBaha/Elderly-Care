@@ -10,7 +10,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   late final LoginViewModel viewModel;
-  
+
   @override
   void initState() {
     super.initState();
@@ -33,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const Text('Welcome Back'),
           ],
         ),
-        backgroundColor: const Color(0xFF03045e),
+        backgroundColor: const Color.fromARGB(255, 20, 240, 189),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -53,7 +53,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your email';
                   }
-                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                  if (!RegExp(
+                          r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+                      .hasMatch(value)) {
                     return 'Please enter a valid email';
                   }
                   return null;
@@ -71,7 +73,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   fillColor: Colors.white,
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                      _obscurePassword
+                          ? Icons.visibility
+                          : Icons.visibility_off,
                     ),
                     onPressed: () {
                       setState(() {
@@ -108,21 +112,22 @@ class _LoginScreenState extends State<LoginScreen> {
               ElevatedButton(
                 onPressed: () async {
                   if (_formKey.currentState!.validate()) {
-                    bool success = await viewModel.login(viewModel.email, viewModel.password);
+                    bool success = await viewModel.login(
+                        viewModel.email, viewModel.password);
                     print('Login success: $success');
                     if (success) {
                       Navigator.pushReplacementNamed(context, '/home');
                     } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Login failed. Please try again.'))
-                      );
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text('Login failed. Please try again.')));
                     }
                   }
                 },
                 child: const Text('Log in'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00b4d8),
-                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                  backgroundColor: const Color.fromARGB(255, 14, 234, 168),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
                 ),
               ),
               const SizedBox(height: 20),

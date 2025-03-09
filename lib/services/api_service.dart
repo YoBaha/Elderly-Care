@@ -7,8 +7,8 @@ import 'notification_service.dart';
 import '../models/doctor.dart';
 
 class ApiService {
-  final String baseUrl = 'http://192.168.1.17:2000/api';
-  String token; // Changed from final to allow token updates
+  final String baseUrl = 'http://10.0.2.2:2000/api';
+  String token;
   final int timeoutSeconds = 30;
   final int maxRetries = 2;
   final NotificationService notificationService;
@@ -46,10 +46,13 @@ class ApiService {
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Origin, Content-Type, X-Auth-Token'
     };
   }
 
-  // Doctor-related methods
+  // Enhanced doctor methods from your friend's version
   Future<List<Doctor>> getDoctors() async {
     try {
       final response = await _makeRequest(() => http.get(
@@ -157,7 +160,7 @@ class ApiService {
     }
   }
 
-  // Existing product and user methods
+  // Your existing product and user methods with added validations
   Future<List<Product>> getProducts() async {
     try {
       final response = await _makeRequest(() => http.get(
@@ -174,6 +177,9 @@ class ApiService {
   }
 
   Future<String> signup(User user) async {
+    if (user == null) {
+      throw Exception('User cannot be null');
+    }
     try {
       final response = await _makeRequest(() => http.post(
             Uri.parse('$baseUrl/users/register'),
@@ -190,6 +196,9 @@ class ApiService {
   }
 
   Future<String> login(String email, String password) async {
+    if (email.isEmpty || password.isEmpty) {
+      throw Exception('Email and password cannot be empty');
+    }
     try {
       print('Attempting to log in with email: $email');
       final response = await _makeRequest(() => http.post(
@@ -201,17 +210,31 @@ class ApiService {
       final data = json.decode(response.body);
       final token = data['token'];
 
+      if (token == null || token.isEmpty) {
+        throw Exception('Invalid token received from server');
+      }
+
+      if (!token.contains('.')) {
+        throw Exception('Malformed token received');
+      }
+
       String quote = await fetchMotivationalQuote();
       await notificationService.showNotification('Motivational Quote', quote);
 
       return token;
+    } on http.ClientException catch (e) {
+      throw Exception('Network error: ${e.message}');
+    } on FormatException catch (e) {
+      throw Exception('Invalid server response: ${e.message}');
     } catch (e) {
-      print('Error during login: $e');
-      throw Exception('Failed to login: $e');
+      throw Exception('Login failed: ${e.toString()}');
     }
   }
 
   Future<User> getUser() async {
+    if (token.isEmpty) {
+      throw Exception('Token is not available');
+    }
     try {
       final response = await _makeRequest(() => http.get(
             Uri.parse('$baseUrl/users/profile-details'),
@@ -226,6 +249,9 @@ class ApiService {
   }
 
   Future<void> updateUserProfile(User user) async {
+    if (user == null) {
+      throw Exception('User cannot be null');
+    }
     try {
       await _makeRequest(() => http.put(
             Uri.parse('$baseUrl/users/profile-update'),
@@ -242,15 +268,11 @@ class ApiService {
     try {
       final response =
           await http.get(Uri.parse('https://qapi.vercel.app/api/random'));
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final quote = data['quote'];
-        await notificationService.showNotification('Motivational Quote', quote);
-        return quote;
-      } else {
-        return 'Every day is a new opportunity to grow and improve.';
+        return data['quote'];
       }
+      return 'Every day is a new opportunity to grow and improve.';
     } catch (e) {
       return 'Challenges are what make life interesting. Overcoming them is what makes life meaningful.';
     }

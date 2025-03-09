@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/cart_model.dart'; // Import CartItem model
-import '../viewmodels/cart_viewmodel.dart'; // Import CartViewModel
+// Import CartViewModel
 import 'payment_handling_screen.dart'; // Import PaymentHandlingScreen
 import 'package:http/http.dart' as http; // Import HTTP package
 import 'dart:convert'; // Import JSON package
@@ -12,11 +12,13 @@ class PaymentScreen extends StatelessWidget {
 
   Future<void> _checkout() async {
     // Calculate total amount
-    int totalAmount = cartItems.fold(0, (sum, item) => sum + (item.product.price * item.quantity).toInt());
+    int totalAmount = cartItems.fold(
+        0, (sum, item) => sum + (item.product.price * item.quantity).toInt());
 
     // Make a request to the backend to create a payment intent
     final response = await http.post(
-      Uri.parse('http://localhost:2000/api/checkout'), // Replace with your backend URL
+      Uri.parse(
+          'http://localhost:2000/api/checkout'), // Replace with your backend URL
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'amount': totalAmount}),
     );
@@ -52,7 +54,8 @@ class PaymentScreen extends StatelessWidget {
                   final item = cartItems[index];
                   return ListTile(
                     title: Text(item.product.name),
-                    subtitle: Text('Quantity: ${item.quantity} - Price: \$${item.product.price}'),
+                    subtitle: Text(
+                        'Quantity: ${item.quantity} - Price: \$${item.product.price}'),
                   );
                 },
               ),
@@ -62,7 +65,9 @@ class PaymentScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => PaymentHandlingScreen(cartItems: cartItems), // Navigate to PaymentHandlingScreen
+                    builder: (context) => PaymentHandlingScreen(
+                        cartItems:
+                            cartItems), // Navigate to PaymentHandlingScreen
                   ),
                 );
               },

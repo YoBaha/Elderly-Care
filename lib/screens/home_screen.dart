@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import '../models/doctor.dart';
+import '../pages/home_bot.dart';
+import 'doctor_detail_screen.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:pim/pages/home_bot.dart';
+import '../pages/chatscreen.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/notification_service.dart';
+import '../services/api_service.dart';
+import 'package:provider/provider.dart';
 import 'profile_screen.dart';
 import 'marketplace_screen.dart';
 import 'settings_screen.dart';
-import '../services/api_service.dart';
-import 'package:provider/provider.dart';
-import '../pages/chatscreen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -15,95 +18,30 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final FlutterSecureStorage secureStorage = FlutterSecureStorage();
   int _selectedIndex = 0;
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    if (index == 1) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => ChatScreen()),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.message), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
-        ],
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Your daily motivation",
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Icon(Icons.notifications_outlined),
-                      SizedBox(width: 16),
-                      IconButton(
-                        icon: Icon(LucideIcons.messageCircle),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ChatScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _MotivationalQuote(),
-              const SizedBox(height: 16),
-              _quickActions(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MotivationalQuote extends StatefulWidget {
-  @override
-  _MotivationalQuoteState createState() => _MotivationalQuoteState();
-}
-
-class _MotivationalQuoteState extends State<_MotivationalQuote> {
   String? motivationalQuote;
+  late NotificationService _notificationService;
+
+  // Define three screens for bottom nav items:
+  final List<Widget> _screens = [
+    // Home content (scrollable main page)
+    HomeContent(),
+    // HomeBot screen (for the middle bottom nav item)
+    HomeBot(),
+    // Profile screen
+    ProfileScreen(token: 'token'),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _fetchQuote();
+    _notificationService = NotificationService();
+    _fetchInitialQuote();
+    _setupNotifications();
   }
 
-  Future<void> _fetchQuote() async {
+  Future<void> _fetchInitialQuote() async {
     try {
       final apiService = Provider.of<ApiService>(context, listen: false);
       final quote = await apiService.fetchMotivationalQuote();
@@ -112,46 +50,300 @@ class _MotivationalQuoteState extends State<_MotivationalQuote> {
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load quote: $e')),
+        SnackBar(content: Text('Failed to fetch motivational quote: $e')),
       );
     }
   }
 
+  Future<void> _setupNotifications() async {
+    await _notificationService.init();
+    await _notificationService.showQuoteNotification();
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.blueAccent.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
+    return Scaffold(
+      // Display the selected screen from bottom nav
+      body: _screens[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        backgroundColor: Colors.white,
+        selectedItemColor: Colors.black,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.auto_awesome_mosaic), label: 'HealthBot'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
       ),
-      child: motivationalQuote != null
-          ? Text(
-              motivationalQuote!,
-              style: TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
-              textAlign: TextAlign.center,
-            )
-          : CircularProgressIndicator(),
     );
   }
 }
 
-Widget _quickActions() {
-  return Row(
-    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-    children: [
-      _actionIcon(Icons.shopping_cart, "Marketplace"),
-      _actionIcon(Icons.settings, "Settings"),
-      _actionIcon(Icons.person, "Profile"),
-    ],
-  );
-}
+// Main HomeContent widget with scrollable content
+class HomeContent extends StatelessWidget {
+  const HomeContent({Key? key}) : super(key: key);
 
-Widget _actionIcon(IconData icon, String title) {
-  return Column(
-    children: [
-      Icon(icon, size: 30, color: Colors.blue),
-      Text(title, style: TextStyle(fontSize: 12)),
-    ],
-  );
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      // Entire home content scrolls vertically
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTopBar(context),
+            const SizedBox(height: 16),
+            _buildSearchField(),
+            const SizedBox(height: 16),
+            _buildCategoryRow(context),
+            const SizedBox(height: 16),
+            _buildMotivationalBanner(context),
+            const SizedBox(height: 16),
+            _buildDoctorSection(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBar(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text(
+          "Find your desire\nhealth solution",
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.notifications),
+              onPressed: () {
+                // Show notification (for example)
+                // You can add your notification logic here
+              },
+            ),
+            const SizedBox(width: 16),
+            IconButton(
+              icon: const Icon(LucideIcons.messageCircle),
+              // This top bar chat icon navigates to ChatScreen
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ChatScreen()),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchField() {
+    return TextField(
+      decoration: InputDecoration(
+        hintText: "Search doctor, drugs, articles...",
+        prefixIcon: const Icon(Icons.search),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryRow(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _categoryIcon(Icons.local_hospital, "Doctor",
+            onTap: () => Navigator.pushNamed(context, '/doctors')),
+        _categoryIcon(Icons.shopping_bag, "Marketplace", onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  MarketplaceScreen('token', NotificationService()),
+            ),
+          );
+        }),
+        _categoryIcon(Icons.local_pharmacy, "Pharmacy"),
+        _categoryIcon(Icons.medical_services, "Services"),
+      ],
+    );
+  }
+
+  Widget _buildMotivationalBanner(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.teal[100],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Your health is our Priority",
+                  style: const TextStyle(
+                      fontSize: 16, fontStyle: FontStyle.italic),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {},
+                  child: const Text("Learn more"),
+                ),
+              ],
+            ),
+          ),
+          Image.asset("assets/doctor.png", width: 80),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDoctorSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader("Your Doctors"),
+        const SizedBox(height: 8),
+        Container(
+          height: 180, // Fixed height for horizontal scrolling list
+          child: _doctorList(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _categoryIcon(IconData icon, String title, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Icon(icon, size: 30, color: Colors.teal),
+          Text(title, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const Text(
+          "See all",
+          style: TextStyle(fontSize: 14, color: Colors.blue),
+        ),
+      ],
+    );
+  }
+
+  Widget _doctorList(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _doctorCard(
+              context, "Dr. Marcus Horiz", "Cardiologist", "4.7", "800m away"),
+          _doctorCard(
+              context, "Dr. Maria Elena", "Psychologist", "4.8", "1.5km away"),
+          _doctorCard(
+              context, "Dr. Stevi Jes", "Orthopedist", "4.6", "2km away"),
+        ],
+      ),
+    );
+  }
+
+  Widget _doctorCard(BuildContext context, String name, String specialty,
+      String rating, String distance) {
+    final doctor = Doctor(
+      id: '1',
+      firstName: name.split(' ')[0],
+      lastName: name.split(' ')[1],
+      specialization: specialty,
+      rating: double.parse(rating),
+      distance: double.parse(distance.replaceAll(RegExp(r'[^0-9.]'), '')),
+      profilePicture: '',
+      email: 'doctor@example.com',
+      availability: true,
+      location: [0.0, 0.0],
+      reviews: [],
+    );
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DoctorDetailScreen(doctor: doctor),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(right: 12, top: 8),
+        padding: const EdgeInsets.all(12),
+        width: 140,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 2,
+              blurRadius: 5,
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              backgroundColor: Colors.grey[200],
+              radius: 30,
+              child: Icon(Icons.person, size: 40, color: Colors.teal),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${doctor.firstName} ${doctor.lastName}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(specialty,
+                style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.star, color: Colors.orange, size: 14),
+                Text(rating, style: const TextStyle(fontSize: 12)),
+                const Spacer(),
+                Text(distance,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

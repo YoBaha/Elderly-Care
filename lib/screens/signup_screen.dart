@@ -4,7 +4,6 @@ import 'package:image_picker/image_picker.dart';
 import '../viewmodels/signup_viewmodel.dart';
 import '../services/notification_service.dart';
 import '../services/api_service.dart';
-import '../services/notification_service.dart'; // Import NotificationService
 
 class SignupScreen extends StatefulWidget {
   @override
@@ -23,8 +22,9 @@ class _SignupScreenState extends State<SignupScreen> {
     super.initState();
     // Initialize NotificationService
     final notificationService = NotificationService();
-    notificationService.init();  // Initialize notification service
-    final apiService = ApiService('', notificationService);  // Pass both arguments to ApiService
+    notificationService.init(); // Initialize notification service
+    final apiService = ApiService(
+        '', notificationService); // Pass both arguments to ApiService
 
     // Pass ApiService to SignupViewModel
     viewModel = SignupViewModel(apiService);
@@ -74,7 +74,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   labelText: 'Email',
                   border: OutlineInputBorder(),
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: Color.fromARGB(255, 255, 255, 255),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -94,7 +94,8 @@ class _SignupScreenState extends State<SignupScreen> {
                   filled: true,
                   fillColor: Colors.white,
                   suffixIcon: IconButton(
-                    icon: Image.asset('assets/show_hide.jpg', width: 20, height: 20),
+                    icon: Image.asset('assets/show_hide.jpg',
+                        width: 20, height: 20),
                     onPressed: () {
                       setState(() {
                         _obscurePassword = !_obscurePassword;
@@ -157,7 +158,8 @@ class _SignupScreenState extends State<SignupScreen> {
                     decoration: InputDecoration(
                       labelText: _selectedDate == null
                           ? 'Birth Date (Tap to select)'
-                          : 'Birth Date: ${_selectedDate!.toLocal()}'.split(' ')[0],
+                          : 'Birth Date: ${_selectedDate!.toLocal()}'
+                              .split(' ')[0],
                       border: const OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white,
@@ -183,16 +185,16 @@ class _SignupScreenState extends State<SignupScreen> {
                     if (success) {
                       Navigator.pushReplacementNamed(context, '/home');
                     } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Signup failed. Please try again.'))
-                      );
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text('Signup failed. Please try again.')));
                     }
                   }
                 },
                 child: const Text('Sign Up'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00b4d8),
-                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                  backgroundColor: const Color.fromARGB(255, 11, 249, 178),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
                 ),
               ),
             ],
