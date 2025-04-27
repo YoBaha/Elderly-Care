@@ -165,7 +165,10 @@ class ApiService {
     try {
       final response = await _makeRequest(() => http.get(
             Uri.parse('$baseUrl/products'),
-            headers: _getHeaders(),
+            headers: {
+              'Content-Type': 'application/json',
+              // No Authorization header
+            },
           ));
 
       List<dynamic> jsonResponse = json.decode(response.body);
@@ -177,9 +180,6 @@ class ApiService {
   }
 
   Future<String> signup(User user) async {
-    if (user == null) {
-      throw Exception('User cannot be null');
-    }
     try {
       final response = await _makeRequest(() => http.post(
             Uri.parse('$baseUrl/users/register'),
@@ -203,30 +203,40 @@ class ApiService {
       print('Attempting to log in with email: $email');
       final response = await _makeRequest(() => http.post(
             Uri.parse('$baseUrl/users/login'),
-            headers: _getHeaders(),
+            headers: {
+              'Content-Type': 'application/json',
+            },
             body: json.encode({'email': email, 'password': password}),
           ));
 
-      final data = json.decode(response.body);
-      final token = data['token'];
+      print('Login response status: ${response.statusCode}');
+      print('Login response body: ${response.body}');
 
+      final data = json.decode(response.body);
+      print('Parsed response data: $data');
+
+      final token = data['token'];
       if (token == null || token.isEmpty) {
         throw Exception('Invalid token received from server');
       }
-
       if (!token.contains('.')) {
         throw Exception('Malformed token received');
       }
 
-      String quote = await fetchMotivationalQuote();
-      await notificationService.showNotification('Motivational Quote', quote);
+      updateToken(token);
+
+      // String quote = await fetchMotivationalQuote();
+      // await notificationService.showNotification('Motivational Quote', quote);
 
       return token;
     } on http.ClientException catch (e) {
+      print('Network error: ${e.message}');
       throw Exception('Network error: ${e.message}');
     } on FormatException catch (e) {
+      print('Invalid server response: ${e.message}');
       throw Exception('Invalid server response: ${e.message}');
     } catch (e) {
+      print('Login failed: $e');
       throw Exception('Login failed: ${e.toString()}');
     }
   }
@@ -249,9 +259,6 @@ class ApiService {
   }
 
   Future<void> updateUserProfile(User user) async {
-    if (user == null) {
-      throw Exception('User cannot be null');
-    }
     try {
       await _makeRequest(() => http.put(
             Uri.parse('$baseUrl/users/profile-update'),
@@ -284,6 +291,54 @@ class ApiService {
       await notificationService.showNotification('Motivational Quote', quote);
     } catch (e) {
       print('Error showing quote on app launch: $e');
+    }
+  }
+
+// Add to ApiService
+  Future<Map<String, dynamic>> getCart() async {
+    try {
+      final response = await _makeRequest(() => http.get(
+            Uri.parse('$baseUrl/carts'),
+            headers: _getHeaders(),
+          ));
+      return json.decode(response.body);
+    } catch (e) {
+      throw Exception('Failed to load cart: $e');
+    }
+  }
+
+  Future<void> addToCart(String productId, int quantity) async {
+    try {
+      await _makeRequest(() => http.post(
+            Uri.parse('$baseUrl/carts'),
+            headers: _getHeaders(),
+            body: json.encode({'productId': productId, 'quantity': quantity}),
+          ));
+    } catch (e) {
+      throw Exception('Failed to add to cart: $e');
+    }
+  }
+
+  Future<void> updateCartQuantity(String productId, int quantity) async {
+    try {
+      await _makeRequest(() => http.put(
+            Uri.parse('$baseUrl/carts/$productId'),
+            headers: _getHeaders(),
+            body: json.encode({'quantity': quantity}),
+          ));
+    } catch (e) {
+      throw Exception('Failed to update cart: $e');
+    }
+  }
+
+  Future<void> removeFromCart(String productId) async {
+    try {
+      await _makeRequest(() => http.delete(
+            Uri.parse('$baseUrl/carts/$productId'),
+            headers: _getHeaders(),
+          ));
+    } catch (e) {
+      throw Exception('Failed to remove from cart: $e');
     }
   }
 }

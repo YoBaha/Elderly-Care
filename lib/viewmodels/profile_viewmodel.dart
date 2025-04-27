@@ -17,7 +17,7 @@ class ProfileViewModel extends ChangeNotifier {
     
     try {
       user = await apiService.getUser();
-      if (user == null || user!.username == null || user!.email == null) {
+      if (user == null) {
         errorMessage = 'User data is incomplete';
       }
     } catch (e) {

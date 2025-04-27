@@ -10,9 +10,15 @@ import '../services/api_service.dart';
 import 'package:provider/provider.dart';
 import 'profile_screen.dart';
 import 'marketplace_screen.dart';
-import 'settings_screen.dart';
+import '../pages/pharmacy_screen.dart';
+import '../pages/emergency_button_screen.dart';
 
 class HomeScreen extends StatefulWidget {
+  final String token; // Add token parameter
+  final NotificationService notificationService; // Add for consistency
+
+  HomeScreen({required this.token, required this.notificationService});
+
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
@@ -23,20 +29,18 @@ class _HomeScreenState extends State<HomeScreen> {
   String? motivationalQuote;
   late NotificationService _notificationService;
 
-  // Define three screens for bottom nav items:
-  final List<Widget> _screens = [
-    // Home content (scrollable main page)
-    HomeContent(),
-    // HomeBot screen (for the middle bottom nav item)
+  // Update screens to pass token
+  late final List<Widget> _screens = [
+    HomeContent(
+        token: widget.token, notificationService: widget.notificationService),
     HomeBot(),
-    // Profile screen
-    ProfileScreen(token: 'token'),
+    ProfileScreen(token: widget.token),
   ];
 
   @override
   void initState() {
     super.initState();
-    _notificationService = NotificationService();
+    _notificationService = widget.notificationService;
     _fetchInitialQuote();
     _setupNotifications();
   }
@@ -69,7 +73,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Display the selected screen from bottom nav
       body: _screens[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
@@ -88,14 +91,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// Main HomeContent widget with scrollable content
 class HomeContent extends StatelessWidget {
-  const HomeContent({Key? key}) : super(key: key);
+  final String token;
+  final NotificationService notificationService;
+
+  const HomeContent({
+    Key? key,
+    required this.token,
+    required this.notificationService,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      // Entire home content scrolls vertically
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -130,16 +138,22 @@ class HomeContent extends StatelessWidget {
         Row(
           children: [
             IconButton(
+              icon: const Icon(Icons.emergency, color: Colors.red),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => EmergencyButtonScreen()),
+              ),
+            ),
+            IconButton(
               icon: const Icon(Icons.notifications),
               onPressed: () {
-                // Show notification (for example)
-                // You can add your notification logic here
+                // Notification logic
               },
             ),
             const SizedBox(width: 16),
             IconButton(
               icon: const Icon(LucideIcons.messageCircle),
-              // This top bar chat icon navigates to ChatScreen
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => ChatScreen()),
@@ -173,12 +187,19 @@ class HomeContent extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  MarketplaceScreen('token', NotificationService()),
+              builder: (context) => MarketplaceScreen(
+                token: token,
+                notificationService: notificationService,
+              ),
             ),
           );
         }),
-        _categoryIcon(Icons.local_pharmacy, "Pharmacy"),
+        _categoryIcon(Icons.local_pharmacy, "Pharmacy", onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => PharmacyScreen()),
+          );
+        }),
         _categoryIcon(Icons.medical_services, "Services"),
       ],
     );
@@ -224,7 +245,7 @@ class HomeContent extends StatelessWidget {
         _sectionHeader("Your Doctors"),
         const SizedBox(height: 8),
         Container(
-          height: 180, // Fixed height for horizontal scrolling list
+          height: 180,
           child: _doctorList(context),
         ),
       ],

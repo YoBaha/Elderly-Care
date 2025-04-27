@@ -4,25 +4,29 @@ import '../viewmodels/cart_viewmodel.dart'; // Import CartViewModel
 import 'payment_screen.dart'; // Import PaymentScreen
 
 class CartScreen extends StatefulWidget {
+  final String token; // Add token parameter
+  CartScreen({required this.token});
+
   @override
   _CartScreenState createState() => _CartScreenState();
 }
 
 class _CartScreenState extends State<CartScreen> {
-  final CartViewModel _cartViewModel = CartViewModel(); // Create CartViewModel instance
-  List<CartItem> _cartItems = []; // List to hold cart items
+  late final CartViewModel _cartViewModel;
+  List<CartItem> _cartItems = [];
 
   @override
   void initState() {
     super.initState();
-    _loadCart(); // Load cart items on initialization
+    _cartViewModel = CartViewModel(widget.token); // Initialize with token
+    _loadCart();
   }
 
   Future<void> _loadCart() async {
     print("Fetching cart items...");
-    Cart cart = await _cartViewModel.getCart(); 
-    print("Cart items loaded: ${cart.items}"); 
-    _cartItems = cart.items; 
+    Cart cart = await _cartViewModel.getCart();
+    print("Cart items loaded: ${cart.items}");
+    _cartItems = cart.items;
     setState(() {});
   }
 
@@ -50,7 +54,8 @@ class _CartScreenState extends State<CartScreen> {
                     .toList(),
                 onChanged: (newValue) async {
                   if (newValue != null) {
-                    await _cartViewModel.updateQuantity(item.product.id, newValue);
+                    await _cartViewModel.updateQuantity(
+                        item.product.id, newValue);
                     await _loadCart();
                     Navigator.pop(context);
                   }
@@ -102,20 +107,26 @@ class _CartScreenState extends State<CartScreen> {
                     padding: const EdgeInsets.all(8.0),
                     child: Row(
                       children: [
-                        Image.network(item.product.image, width: 100, height: 100),
+                        Image.network(item.product.image,
+                            width: 100, height: 100),
                         SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(item.product.name, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                              Text('Price: \$${item.product.price}', style: TextStyle(color: Colors.grey)),
+                              Text(item.product.name,
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold)),
+                              Text('Price: \$${item.product.price}',
+                                  style: TextStyle(color: Colors.grey)),
                               GestureDetector(
                                 onTap: () {
                                   _showItemOptionsDialog(item);
                                 },
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text('Quantity: ${item.quantity}'),
                                     IconButton(
@@ -152,11 +163,12 @@ class _CartScreenState extends State<CartScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => PaymentScreen(cartItems: _cartItems), // Navigate to PaymentScreen
+                  builder: (context) =>
+                      PaymentScreen(cartItems: _cartItems, token: widget.token),
                 ),
               );
             },
-            child: Text('Checkout'), // Checkout button
+            child: Text('Checkout'),
           ),
         ],
       ),

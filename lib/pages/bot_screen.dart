@@ -13,10 +13,10 @@ class _BotScreenState extends State<BotScreen> {
   final TextEditingController _userMessage = TextEditingController();
 
   static const apiKey =
-      "AIzaSyDXKTD5R3jCDk1uFUOBmpgCD9_vrEfTPJ0"; // Remplace par ta clé API
+      "AIzaSyDXKTD5R3jCDk1uFUOBmpgCD9_vrEfTPJ0"; // Replace with your actual API key
 
   final model = GenerativeModel(
-    model: 'gemini-1.5-flash', // Passage à Gemini 2.0 Flash
+    model: 'gemini-1.5-flash', // Switch to Gemini 2.0 Flash
     apiKey: apiKey,
     generationConfig: GenerationConfig(
       temperature: 1,
@@ -27,6 +27,15 @@ class _BotScreenState extends State<BotScreen> {
   );
 
   final List<Message> _messages = [];
+
+  // Medical suggestions to display above the input field
+  final List<String> medicalSuggestions = [
+    "If you feel unwell, please describe your symptoms.",
+    "Do you need advice on healthy eating habits?",
+    "Let me know if you're experiencing any chronic conditions.",
+    "Feeling stressed? I can suggest some relaxation techniques.",
+    "Are you looking for exercise recommendations?"
+  ];
 
   Future<void> sendMessage() async {
     final message = _userMessage.text;
@@ -47,7 +56,7 @@ class _BotScreenState extends State<BotScreen> {
           0,
           Message(
             isUser: false,
-            message: response.text ?? "Je n'ai pas compris...",
+            message: response.text ?? "I didn't understand that...",
             date: DateTime.now(),
           ),
         );
@@ -58,7 +67,7 @@ class _BotScreenState extends State<BotScreen> {
           0,
           Message(
             isUser: false,
-            message: "Erreur : Impossible de répondre pour le moment.",
+            message: "Error: Unable to respond at the moment.",
             date: DateTime.now(),
           ),
         );
@@ -75,6 +84,36 @@ class _BotScreenState extends State<BotScreen> {
         body: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
+            // Display medical suggestions in circular boxes above the input field
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: medicalSuggestions.map((suggestion) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Text(
+                        suggestion,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+
             Expanded(
               child: ListView.builder(
                 reverse: true,
@@ -101,7 +140,7 @@ class _BotScreenState extends State<BotScreen> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(50),
                         ),
-                        labelText: "Pose ta question à BROXI...",
+                        labelText: "Ask BROXI your medical question...",
                       ),
                     ),
                   ),

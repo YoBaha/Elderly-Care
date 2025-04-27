@@ -50,5 +50,13 @@
 		<key>NSMicrophoneUsageDescription</key>
 		<string>We need access to the microphone</string>
 		<key>UIStatusBarHidden</key>
+		<key>UIBackgroundModes</key>
+<array>
+  <string>fetch</string>
+  <string>remote-notification</string>
+</array>
+<key>UIUserNotificationUsageDescription</key>
+<string>Your app uses notifications to alert you with important information</string>
+
 </dict>
 </plist>

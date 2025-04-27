@@ -45,14 +45,14 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
-                          initialValue: viewModel.user?.weight?.toString() ?? '',
+                          initialValue: viewModel.user?.weight.toString() ?? '',
                           decoration: const InputDecoration(labelText: 'Weight'),
                           keyboardType: TextInputType.number,
                           onChanged: (value) => viewModel.updateWeight(value),
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
-                          initialValue: viewModel.user?.height?.toString() ?? '',
+                          initialValue: viewModel.user?.height.toString() ?? '',
                           decoration: const InputDecoration(labelText: 'Height'),
                           keyboardType: TextInputType.number,
                           onChanged: (value) => viewModel.updateHeight(value),

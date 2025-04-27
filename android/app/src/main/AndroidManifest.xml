@@ -8,8 +8,10 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
 
-    <!-- Single queries block containing all intent queries -->
+    <!-- <queries> should be under <manifest>, not inside <application> -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
@@ -27,6 +29,14 @@
         android:label="pim"
         android:name="${applicationName}"
         android:icon="@mipmap/logo">
+
+        <!-- Service and Receiver should be inside the <application> tag -->
+        <service android:name="me.carda.awesome_notifications.notifications.services.NotificationService"
+                 android:permission="android.permission.BIND_JOB_SERVICE"
+                 android:exported="true"/>
+        <receiver android:name="me.carda.awesome_notifications.notifications.services.NotificationReceiver"
+                  android:exported="true"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -44,8 +54,10 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
+
     </application>
 </manifest>

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../viewmodels/login_viewmodel.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
+import 'home_screen.dart';
+import 'marketplace_screen.dart'; // Import MarketplaceScreen
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -10,17 +12,17 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   late final LoginViewModel viewModel;
+  final NotificationService notificationService = NotificationService();
+  final _formKey = GlobalKey<FormState>();
+  bool _obscurePassword = true;
+  bool _rememberMe = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    final notificationService = NotificationService();
     viewModel = LoginViewModel(ApiService('', notificationService));
   }
-
-  final _formKey = GlobalKey<FormState>();
-  bool _obscurePassword = true;
-  bool _rememberMe = false;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +44,14 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
               TextFormField(
                 decoration: const InputDecoration(
                   labelText: 'Email',
@@ -112,14 +122,32 @@ class _LoginScreenState extends State<LoginScreen> {
               ElevatedButton(
                 onPressed: () async {
                   if (_formKey.currentState!.validate()) {
-                    bool success = await viewModel.login(
-                        viewModel.email, viewModel.password);
-                    print('Login success: $success');
-                    if (success) {
-                      Navigator.pushReplacementNamed(context, '/home');
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text('Login failed. Please try again.')));
+                    setState(() {
+                      _errorMessage = null;
+                    });
+                    try {
+                      bool success = await viewModel.login(
+                        viewModel.email,
+                        viewModel.password,
+                      );
+                      print('Login success: $success');
+                      if (success) {
+                        // Navigate to MarketplaceScreen with the token
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => HomeScreen(
+                              token: viewModel.token,
+                              notificationService: notificationService,
+                            ),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      setState(() {
+                        _errorMessage =
+                            e.toString().replaceAll('Exception: ', '');
+                      });
                     }
                   }
                 },

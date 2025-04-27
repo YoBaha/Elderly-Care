@@ -4,11 +4,13 @@ import '../viewmodels/cart_viewmodel.dart'; // Import CartViewModel
 import '../viewmodels/item_details_viewmodel.dart'; // Import ItemDetailsViewModel
 
 class ItemDetailsScreen extends StatelessWidget {
-  final String productId; // Product ID to fetch details for
-  final CartViewModel cartViewModel = CartViewModel(); // Create CartViewModel instance
-  final ItemDetailsViewModel viewModel = ItemDetailsViewModel(); // Create ItemDetailsViewModel instance
+  final String productId;
+  final String token; // Add token parameter
+  final CartViewModel cartViewModel;
+  final ItemDetailsViewModel viewModel = ItemDetailsViewModel();
 
-  ItemDetailsScreen({required this.productId});
+  ItemDetailsScreen({required this.productId, required this.token})
+      : cartViewModel = CartViewModel(token);
 
   @override
   Widget build(BuildContext context) {
@@ -29,16 +31,19 @@ class ItemDetailsScreen extends StatelessWidget {
                 children: [
                   Image.network(product.image, height: 200), // Product image
                   SizedBox(height: 10),
-                  Text('Price: \$${product.price}', style: TextStyle(fontSize: 20)),
+                  Text('Price: \$${product.price}',
+                      style: TextStyle(fontSize: 20)),
                   SizedBox(height: 10),
-                  Text('Description: ${product.description}', style: TextStyle(fontSize: 16)),
+                  Text('Description: ${product.description}',
+                      style: TextStyle(fontSize: 16)),
                 ],
               ),
             ),
             actions: [
               ElevatedButton(
                 onPressed: () async {
-                  await cartViewModel.addToCart(product.id, 1); // Default quantity of 1
+                  await cartViewModel.addToCart(
+                      product.id, 1); // Default quantity of 1
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('${product.name} added to cart!')),
                   );
@@ -47,7 +52,8 @@ class ItemDetailsScreen extends StatelessWidget {
                 child: Text('Add to Cart'),
               ),
               TextButton(
-                onPressed: () => Navigator.of(context).pop(), // Close the dialog
+                onPressed: () =>
+                    Navigator.of(context).pop(), // Close the dialog
                 child: Text('Close'),
               ),
             ],
