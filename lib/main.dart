@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/doctors_screen.dart';
@@ -9,12 +10,24 @@ import 'viewmodels/doctor_viewmodel.dart';
 import 'services/api_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
-// Import HomeScreen
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Stripe
+  try {
+    Stripe.publishableKey =
+        'pk_test_51RHrcTGd1mOBLMSWZADSUzayt44Zg3JFdp345WK8BFIjTuki6OUj3iU5zCeKT0K8zmfWgMoGX4rBTE24EoCt2in200XMkaiB71';
+    await Stripe.instance.applySettings();
+  } catch (e) {
+    print('Stripe initialization failed: $e');
+    // Continue running the app even if Stripe fails to initialize
+    // You might want to handle this differently in production
+  }
+
+  // Initialize token
   final storage = FlutterSecureStorage();
-  final token = await storage.read(key: 'token') ?? '';
+  final token = await storage.read(key: 'auth_token') ?? '';
   runApp(MyApp(initialToken: token));
 }
 
