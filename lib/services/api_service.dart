@@ -5,14 +5,17 @@ import '../models/user.dart';
 import '../models/product_model.dart';
 import 'notification_service.dart';
 import '../models/doctor.dart';
+import '../models/exercise.dart'; // Add this import
 
 class ApiService {
   final String baseUrl = 'http://10.0.2.2:2000/api';
   String token;
   final int timeoutSeconds = 30;
   final int maxRetries = 2;
-  final NotificationService notificationService;
-
+  final NotificationService? notificationService;
+  static const String exercisesApiKey =
+      'FpnDy/bcnuw9mosfJl/fwA==VBIoTqAgRRt8RL8f';
+  static const String sudokuApiKey = 'FpnDy/bcnuw9mosfJl/fwA==VBIoTqAgRRt8RL8f';
   ApiService(this.token, this.notificationService);
 
   void updateToken(String newToken) {
@@ -288,7 +291,12 @@ class ApiService {
   Future<void> showQuoteOnAppLaunch() async {
     try {
       String quote = await fetchMotivationalQuote();
-      await notificationService.showNotification('Motivational Quote', quote);
+      if (notificationService != null) {
+        await notificationService!
+            .showNotification('Motivational Quote', quote);
+      } else {
+        print('NotificationService not available, skipping notification');
+      }
     } catch (e) {
       print('Error showing quote on app launch: $e');
     }
@@ -339,6 +347,79 @@ class ApiService {
           ));
     } catch (e) {
       throw Exception('Failed to remove from cart: $e');
+    }
+  }
+
+  Future<List<Exercise>> fetchExercises({
+    String? name,
+    String? type,
+    String? muscle,
+    String? difficulty,
+  }) async {
+    final Map<String, String> queryParams = {};
+    if (name != null) queryParams['name'] = name;
+    if (type != null) queryParams['type'] = type;
+    if (muscle != null) queryParams['muscle'] = muscle;
+    if (difficulty != null) queryParams['difficulty'] = difficulty;
+
+    final uri = Uri.parse('https://api.api-ninjas.com/v1/exercises')
+        .replace(queryParameters: queryParams);
+
+    final response = await _makeRequest(() => http.get(
+          uri,
+          headers: {
+            'X-Api-Key': exercisesApiKey,
+            'Content-Type': 'application/json',
+          },
+        ));
+
+    if (response.statusCode == 200) {
+      final decodedBody = jsonDecode(response.body);
+      if (decodedBody is List) {
+        return decodedBody.map((json) => Exercise.fromJson(json)).toList();
+      } else {
+        throw Exception('Invalid response format: Expected array of exercises');
+      }
+    } else {
+      throw Exception('Failed to load exercises: ${response.statusCode}');
+    }
+  }
+
+  Future<Map<String, dynamic>> fetchSudokuPuzzle({
+    int? width,
+    int? height,
+    String? difficulty,
+    String? seed,
+  }) async {
+    final Map<String, String> queryParams = {};
+    if (width != null) queryParams['width'] = width.toString();
+    if (height != null) queryParams['height'] = height.toString();
+    if (difficulty != null) queryParams['difficulty'] = difficulty;
+    if (seed != null) queryParams['seed'] = seed;
+
+    final uri = Uri.parse('https://api.api-ninjas.com/v1/sudokugenerate')
+        .replace(queryParameters: queryParams);
+
+    final response = await _makeRequest(() => http.get(
+          uri,
+          headers: {
+            'X-Api-Key': sudokuApiKey,
+            'Content-Type': 'application/json',
+          },
+        ));
+
+    if (response.statusCode == 200) {
+      print(
+          'Sudoku API Response: ${response.body}'); // Add this line for debugging
+      final decodedBody = jsonDecode(response.body);
+      if (decodedBody is Map<String, dynamic>) {
+        return decodedBody;
+      } else {
+        throw Exception(
+            'Invalid response format: Expected a Sudoku puzzle object');
+      }
+    } else {
+      throw Exception('Failed to load Sudoku puzzle: ${response.statusCode}');
     }
   }
 }

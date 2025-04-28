@@ -12,10 +12,12 @@ import 'profile_screen.dart';
 import 'marketplace_screen.dart';
 import '../pages/pharmacy_screen.dart';
 import '../pages/emergency_button_screen.dart';
+import 'exercises_screen.dart';
+import 'sudoku_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  final String token; // Add token parameter
-  final NotificationService notificationService; // Add for consistency
+  final String token;
+  final NotificationService notificationService;
 
   HomeScreen({required this.token, required this.notificationService});
 
@@ -29,7 +31,6 @@ class _HomeScreenState extends State<HomeScreen> {
   String? motivationalQuote;
   late NotificationService _notificationService;
 
-  // Update screens to pass token
   late final List<Widget> _screens = [
     HomeContent(
         token: widget.token, notificationService: widget.notificationService),
@@ -200,7 +201,18 @@ class HomeContent extends StatelessWidget {
             MaterialPageRoute(builder: (context) => PharmacyScreen()),
           );
         }),
-        _categoryIcon(Icons.medical_services, "Services"),
+        _categoryIcon(Icons.medical_services, "Exercises", onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => ExercisesScreen()),
+          );
+        }),
+        _categoryIcon(Icons.grid_3x3, "Sudoku", onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SudokuScreen()),
+          );
+        }),
       ],
     );
   }
