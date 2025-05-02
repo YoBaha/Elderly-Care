@@ -14,7 +14,7 @@ class ProfileViewModel extends ChangeNotifier {
 
   Future<void> fetchUserData() async {
     final apiService = ApiService(token, notificationService);
-    
+
     try {
       user = await apiService.getUser();
       if (user == null) {
@@ -58,7 +58,7 @@ class ProfileViewModel extends ChangeNotifier {
 
   Future<void> updateUserProfile() async {
     final apiService = ApiService(token, notificationService);
-    
+
     try {
       await apiService.updateUserProfile(user!);
       errorMessage = null;

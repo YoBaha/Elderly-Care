@@ -5,7 +5,7 @@ import '../models/user.dart';
 import '../models/product_model.dart';
 import 'notification_service.dart';
 import '../models/doctor.dart';
-import '../models/exercise.dart'; // Add this import
+import '../models/exercise.dart';
 
 class ApiService {
   final String baseUrl = 'http://10.0.2.2:2000/api';
@@ -55,7 +55,6 @@ class ApiService {
     };
   }
 
-  // Enhanced doctor methods from your friend's version
   Future<List<Doctor>> getDoctors() async {
     try {
       final response = await _makeRequest(() => http.get(
@@ -163,14 +162,12 @@ class ApiService {
     }
   }
 
-  // Your existing product and user methods with added validations
   Future<List<Product>> getProducts() async {
     try {
       final response = await _makeRequest(() => http.get(
             Uri.parse('$baseUrl/products'),
             headers: {
               'Content-Type': 'application/json',
-              // No Authorization header
             },
           ));
 
@@ -227,9 +224,6 @@ class ApiService {
       }
 
       updateToken(token);
-
-      // String quote = await fetchMotivationalQuote();
-      // await notificationService.showNotification('Motivational Quote', quote);
 
       return token;
     } on http.ClientException catch (e) {
@@ -302,7 +296,6 @@ class ApiService {
     }
   }
 
-// Add to ApiService
   Future<Map<String, dynamic>> getCart() async {
     try {
       final response = await _makeRequest(() => http.get(
@@ -409,8 +402,7 @@ class ApiService {
         ));
 
     if (response.statusCode == 200) {
-      print(
-          'Sudoku API Response: ${response.body}'); // Add this line for debugging
+      print('Sudoku API Response: ${response.body}');
       final decodedBody = jsonDecode(response.body);
       if (decodedBody is Map<String, dynamic>) {
         return decodedBody;

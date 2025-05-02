@@ -21,8 +21,6 @@ void main() async {
     await Stripe.instance.applySettings();
   } catch (e) {
     print('Stripe initialization failed: $e');
-    // Continue running the app even if Stripe fails to initialize
-    // You might want to handle this differently in production
   }
 
   // Initialize token

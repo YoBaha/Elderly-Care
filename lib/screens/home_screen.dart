@@ -14,6 +14,7 @@ import '../pages/pharmacy_screen.dart';
 import '../pages/emergency_button_screen.dart';
 import 'exercises_screen.dart';
 import 'sudoku_screen.dart';
+import 'games_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String token;
@@ -207,10 +208,10 @@ class HomeContent extends StatelessWidget {
             MaterialPageRoute(builder: (context) => ExercisesScreen()),
           );
         }),
-        _categoryIcon(Icons.grid_3x3, "Sudoku", onTap: () {
+        _categoryIcon(Icons.grid_3x3, "Games", onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const SudokuScreen()),
+            MaterialPageRoute(builder: (context) => GamesScreen(token: token)),
           );
         }),
       ],
