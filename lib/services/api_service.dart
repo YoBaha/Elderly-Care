@@ -1,5 +1,6 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
 import 'dart:convert';
-import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../models/user.dart';
 import '../models/product_model.dart';
@@ -8,7 +9,21 @@ import '../models/doctor.dart';
 import '../models/exercise.dart';
 
 class ApiService {
-  final String baseUrl = 'http://10.0.2.2:2000/api';
+  String get baseUrl {
+    if (kIsWeb) {
+      // For web, use localhost or your machine's IP
+      return 'http://localhost:2000/api';
+      // Alternatively, use 'http://192.168.1.14:2000/api' if accessing from another device
+    } else if (Platform.isAndroid && _isEmulator()) {
+      // For Android emulator, use 10.0.2.2
+      return 'http://10.0.2.2:2000/api';
+    } else {
+      // For physical devices or other platforms (iOS, desktop), use local IP or server URL
+      return 'http://192.168.1.14:2000/api';
+      // Replace with your server's public IP or domain if hosted externally
+    }
+  }
+
   String token;
   final int timeoutSeconds = 30;
   final int maxRetries = 2;
@@ -16,7 +31,18 @@ class ApiService {
   static const String exercisesApiKey =
       'FpnDy/bcnuw9mosfJl/fwA==VBIoTqAgRRt8RL8f';
   static const String sudokuApiKey = 'FpnDy/bcnuw9mosfJl/fwA==VBIoTqAgRRt8RL8f';
+
   ApiService(this.token, this.notificationService);
+
+  // Detect if running on an Android emulator
+  bool _isEmulator() {
+    // Emulator detection based on device properties
+    // This is a basic check; refine as needed
+    return Platform.isAndroid &&
+        (Platform.environment['ANDROID_EMULATOR'] != null ||
+            RegExp(r'^emulator-')
+                .hasMatch(Platform.environment['ANDROID_MODEL'] ?? ''));
+  }
 
   void updateToken(String newToken) {
     token = newToken;

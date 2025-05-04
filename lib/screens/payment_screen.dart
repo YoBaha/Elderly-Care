@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_stripe/flutter_stripe.dart'
-    as stripe; // Add prefix to avoid conflict
+import 'package:flutter_stripe/flutter_stripe.dart' as stripe;
 import '../models/cart_model.dart';
 import 'package:dio/dio.dart';
 

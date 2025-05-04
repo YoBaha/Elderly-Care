@@ -23,6 +23,7 @@ dependencies:
   speech_to_text: ^7.0.0
   flutter_stripe: ^11.5.0
   process_run: 1.2.2+1
+  camera: ^0.11.1
 
 dev_dependencies:
   build_runner: ^2.4.15

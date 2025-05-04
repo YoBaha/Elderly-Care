@@ -15,6 +15,7 @@ import '../pages/emergency_button_screen.dart';
 import 'exercises_screen.dart';
 import 'sudoku_screen.dart';
 import 'games_screen.dart';
+import 'sign_language_screen.dart'; // Add this import
 
 class HomeScreen extends StatefulWidget {
   final String token;
@@ -214,6 +215,12 @@ class HomeContent extends StatelessWidget {
             MaterialPageRoute(builder: (context) => GamesScreen(token: token)),
           );
         }),
+        _categoryIcon(Icons.gesture, "Sign Language", onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SignLanguageScreen()),
+          );
+        }), // Add this new category
       ],
     );
   }
