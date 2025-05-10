@@ -14,7 +14,7 @@ from torch.nn.modules.container import Sequential, ModuleList  # Add ModuleList
 from torch.nn.modules.pooling import MaxPool2d  # Add MaxPool2d
 from torch.nn.modules.linear import Identity  # Corrected import
 
-torch.serialization.add_safe_globals([DetectionModel, Sequential, Conv, Conv2d, BatchNorm2d, C2f, SPPF, Detect, SiLU, Upsample, Concat, C3k2, ModuleList, Bottleneck, C3k, MaxPool2d, C2PSA, PSABlock, Attention, Identity, DWConv, DFL])
+torch.serialization.add_safe_globals([DetectionModel, Sequential, Conv, Conv2d, BatchNorm2d, C2f, SPPF, Detect, SiLU, Upsample, Concat, ModuleList, Bottleneck, C3k, MaxPool2d, C2PSA, PSABlock, Attention, Identity, DWConv, DFL, C3k2])
 model_path = "my_model.pt"
 try:
     checkpoint = torch.load(model_path, map_location="cpu", weights_only=True)
