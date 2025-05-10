@@ -65,7 +65,7 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
       print('Captured image size: ${bytes.length} bytes');
 
       // Send frame to server
-      final url = 'http://192.168.1.14:5000/detect';
+      final url = 'http://172.16.9.124:5000/detect';
       final response = await http.post(
         Uri.parse(url),
         body: bytes,

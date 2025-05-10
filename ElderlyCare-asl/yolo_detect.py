@@ -1,7 +1,4 @@
 import os
-import sys
-import argparse
-import time
 import cv2
 import numpy as np
 from ultralytics import YOLO
@@ -9,7 +6,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["http://localhost:*"]}})
+CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins for testing
 
 # Global variables
 model = None
@@ -73,31 +70,18 @@ def detect():
         print(f'Error in detect: {e}')  # Debug
         return jsonify({"error": str(e)}), 500
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model', help='Path to YOLO model file', required=True)
-    parser.add_argument('--thresh', help='Minimum confidence threshold', default=0.5)
-    parser.add_argument('--port', help='Port for Flask server', default=5000, type=int)
-    args = parser.parse_args()
-    return args
+# Initialize model at startup
+model_path = "my_model.pt"
+if not os.path.exists(model_path):
+    print(f'ERROR: Model path {model_path} is invalid or not found.')
+    sys.exit(1)
+
+model = YOLO(model_path, task='detect')
+labels = model.names
+print(f'Model labels: {labels}')  # Debug labels
+min_thresh = float(os.environ.get('MIN_THRESH', 0.5))  # Optional: configure via env
 
 if __name__ == "__main__":
-    # Parse arguments
-    args = parse_args()
-    model_path = args.model
-    min_thresh = float(args.thresh)
-    port = args.port
-
-    # Check if model file exists
-    if not os.path.exists(model_path):
-        print(f'ERROR: Model path {model_path} is invalid or not found.')
-        sys.exit(1)
-
-    # Load the model
-    model = YOLO(model_path, task='detect')
-    labels = model.names
-    print(f'Model labels: {labels}')  # Debug labels
-
-    # Start Flask server
-    print(f'Starting Flask server on port {port}...')
+    # For local testing only; Render uses gunicorn
+    port = int(os.environ.get("PORT", 5000))  # Use Render's PORT or default
     app.run(host='0.0.0.0', port=port, debug=False)
