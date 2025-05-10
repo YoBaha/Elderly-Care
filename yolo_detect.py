@@ -2,13 +2,15 @@ import os
 import cv2
 import numpy as np
 from ultralytics import YOLO
-from ultralytics.nn.tasks import DetectionModel  # Add this import
+from ultralytics.nn.tasks import DetectionModel
+from torch.nn.modules.container import Sequential  # Add this import
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import torch.serialization
+import time  # Ensure time is imported for timestamp
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all for testing
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Global variables
 model = None
@@ -63,8 +65,8 @@ if not os.path.exists(model_path):
     print(f'ERROR: Model path {model_path} is invalid or not found.')
     exit(1)
 
-# Allowlist DetectionModel for torch.load
-torch.serialization.add_safe_globals([DetectionModel])  # Use class, not string
+# Allowlist globals for torch.load
+torch.serialization.add_safe_globals([DetectionModel, Sequential])
 model = YOLO(model_path, task='detect')
 labels = model.names
 print(f'Model labels: {labels}')
