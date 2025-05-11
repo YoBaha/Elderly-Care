@@ -1,84 +1,66 @@
 import os
 import cv2
 import numpy as np
-from ultralytics import YOLO
-from ultralytics.nn.tasks import DetectionModel
-from ultralytics.nn.modules.conv import Conv, Concat, DWConv  # Add DWConv
-from ultralytics.nn.modules.block import C2f, SPPF, C3k2, Bottleneck, C3k, C2PSA, PSABlock, Attention, DFL  # Add DFL
-from ultralytics.nn.modules.head import Detect
-from torch.nn.modules.container import Sequential
-from torch.nn.modules.conv import Conv2d
-from torch.nn.modules.batchnorm import BatchNorm2d
-from torch.nn.modules.activation import SiLU
-from torch.nn.modules.upsampling import Upsample
-from ultralytics.nn.modules.conv import Conv, Concat  # Fix Concat import
-from torch.nn.modules.container import Sequential, ModuleList  # Add ModuleList
-from torch.nn.modules.pooling import MaxPool2d  # Add MaxPool2d
-from torch.nn.modules.linear import Identity  # Corrected import
-from flask import Flask, request, jsonify
+from flask import Flask, request
 from flask_cors import CORS
-import torch.serialization
-import time
+from ultralytics import YOLO
+import logging
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app)
 
-model = None
-labels = None
-min_thresh = 0.5
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Load YOLO model
+try:
+    model = YOLO(os.environ.get('MODEL_PATH', 'path/to/your/model.pt'), task='detect')
+    model.to('cpu')  # Force CPU
+    logger.info(f"Model loaded successfully: {model.names}")
+except Exception as e:
+    logger.error(f"Failed to load model: {e}")
+    raise
 
 @app.route('/detect', methods=['POST'])
 def detect():
     try:
-        if 'image' not in request.files and not request.get_data():
-            return jsonify({"error": "No image data provided"}), 400
-        if 'image' in request.files:
-            file = request.files['image']
-            nparr = np.frombuffer(file.read(), np.uint8)
-        else:
-            nparr = np.frombuffer(request.get_data(), np.uint8)
+        # Read image
+        file = request.get_data()
+        nparr = np.frombuffer(file, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        if frame is None:
-            print('Failed to decode image')
-            return jsonify({"error": "Invalid image data"}), 400
-        print(f'Frame shape: {frame.shape}, size: {frame.size}')
-        frame = cv2.resize(frame, (640, 480))
-        results = model(frame, verbose=False)
-        detections = results[0].boxes
-        print(f'Number of detections: {len(detections)}')
-        for i in range(len(detections)):
-            conf = detections[i].conf.item()
-            classidx = int(detections[i].cls.item())
-            classname = labels[classidx]
-            print(f'Detection {i}: Class={classname}, Confidence={conf}')
-            if conf > min_thresh:
-                print(f'Returning sign: {classname}, confidence: {conf}')
-                return jsonify({
-                    "sign": classname,
-                    "confidence": conf,
-                    "timestamp": time.time()
-                })
-        print('No detections above threshold')
-        return jsonify({
-            "sign": "",
-            "confidence": 0.0,
-            "timestamp": time.time()
-        })
+        logger.info(f"Original frame shape: {frame.shape}, size: {frame.size}")
+
+        # Resize to 320x320
+        frame = cv2.resize(frame, (320, 320))
+        logger.info(f"Resized frame shape: {frame.shape}")
+
+        # Perform detection
+        min_thresh = float(os.environ.get('MIN_THRESH', 0.3))
+        results = model(frame, verbose=False, device='cpu', conf=min_thresh)
+        sign = ""
+        confidence = 0.0
+
+        # Process results
+        for result in results:
+            if result.boxes:
+                max_conf = result.boxes.conf.max().item()
+                if max_conf >= min_thresh:
+                    class_id = result.boxes.cls[result.boxes.conf.argmax()].item()
+                    sign = model.names[class_id]
+                    confidence = max_conf
+
+        response = {
+            "sign": sign,
+            "confidence": confidence,
+            "timestamp": os.times()[4]
+        }
+        logger.info(f"Detection response: {response}")
+        return response
     except Exception as e:
-        print(f'Error in detect: {e}')
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Detection error: {e}")
+        return {"error": str(e)}, 500
 
-model_path = "my_model.pt"
-if not os.path.exists(model_path):
-    print(f'ERROR: Model path {model_path} is invalid or not found.')
-    exit(1)
-
-torch.serialization.add_safe_globals([DetectionModel, Sequential, Conv, Conv2d, BatchNorm2d, C2f, SPPF, Detect, SiLU, Upsample, Concat, C3k2, ModuleList, Bottleneck, C3k, MaxPool2d, C2PSA, PSABlock, Attention, Identity, DWConv, DFL])
-model = YOLO(model_path, task='detect')
-labels = model.names
-print(f'Model labels: {labels}')
-min_thresh = float(os.environ.get('MIN_THRESH', 0.5))
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

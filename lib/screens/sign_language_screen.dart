@@ -14,14 +14,17 @@ class SignLanguageScreen extends StatefulWidget {
 
 class _SignLanguageScreenState extends State<SignLanguageScreen> {
   CameraController? _cameraController;
-  List<Map<String, dynamic>> detectedSigns = []; // Store signs with metadata
+  List<Map<String, dynamic>> detectedSigns = [];
   bool _isProcessing = false;
   Timer? _pollingTimer;
+  int _retryCount = 0;
+  static const int _maxRetries = 2;
 
   @override
   void initState() {
     super.initState();
     initializeCamera();
+    warmUpApi();
     startPolling();
   }
 
@@ -29,19 +32,46 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
     try {
       final cameras = await availableCameras();
       if (cameras.isNotEmpty) {
-        _cameraController =
-            CameraController(cameras[0], ResolutionPreset.medium);
+        CameraDescription? frontCamera;
+        for (var camera in cameras) {
+          if (camera.lensDirection == CameraLensDirection.front) {
+            frontCamera = camera;
+            break;
+          }
+        }
+        _cameraController = CameraController(
+          frontCamera ?? cameras[0],
+          ResolutionPreset.medium,
+        );
         await _cameraController!.initialize();
+        print('Camera initialized: ${_cameraController!.value.isInitialized}, '
+            'LensDirection: ${_cameraController!.description.lensDirection}');
         setState(() {});
       } else {
+        print('No cameras found');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No cameras found')),
         );
       }
     } catch (e) {
+      print('Camera initialization failed: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Camera initialization failed: $e')),
       );
+    }
+  }
+
+  Future<void> warmUpApi() async {
+    try {
+      final response = await http
+          .get(Uri.parse('https://sign-language-api-a443.onrender.com'))
+          .timeout(
+            const Duration(seconds: 45),
+            onTimeout: () => http.Response('Timeout', 408),
+          );
+      print('Warm-up request status: ${response.statusCode}');
+    } catch (e) {
+      print('Warm-up request failed: $e');
     }
   }
 
@@ -64,18 +94,45 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
       final bytes = await image.readAsBytes();
       print('Captured image size: ${bytes.length} bytes');
 
-      // Send frame to server
-      final url = 'http://172.16.9.124:5000/detect';
-      final response = await http.post(
-        Uri.parse(url),
-        body: bytes,
-        headers: {'Content-Type': 'image/jpeg'},
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Detecting sign...')),
       );
 
-      print('Server response status: ${response.statusCode}');
-      print('Server response body: ${response.body}');
+      // Send frame to server with retries
+      bool success = false;
+      int attempt = 0;
+      http.Response? response;
+      while (attempt <= _maxRetries && !success) {
+        try {
+          final url = 'https://sign-language-api-a443.onrender.com/detect';
+          response = await http.post(
+            Uri.parse(url),
+            body: bytes,
+            headers: {'Content-Type': 'image/jpeg'},
+          ).timeout(
+            const Duration(seconds: 45),
+            onTimeout: () {
+              throw TimeoutException(
+                  'API request timed out (attempt ${attempt + 1})');
+            },
+          );
+          success = response.statusCode == 200;
+        } catch (e) {
+          print('Attempt ${attempt + 1} failed: $e');
+          attempt++;
+          if (attempt <= _maxRetries) {
+            await Future.delayed(const Duration(seconds: 2));
+          }
+        }
+      }
 
-      if (response.statusCode == 200) {
+      // Hide loading indicator
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      if (success && response != null) {
+        print('Server response status: ${response.statusCode}');
+        print('Server response body: ${response.body}');
         final data = jsonDecode(response.body);
         print('Parsed response data: $data');
         setState(() {
@@ -87,17 +144,20 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
               'confidence': confidence,
               'timestamp': DateTime.now(),
             });
-            // Limit to last 10 signs to prevent overflow
             if (detectedSigns.length > 10) {
               detectedSigns.removeAt(0);
             }
           }
           print('Added sign: $newSign, confidence: $confidence');
+          _retryCount = 0; // Reset retries on success
         });
       } else {
-        print('Server error: ${response.statusCode}');
+        final errorMsg = response != null
+            ? 'Server error: ${response.statusCode}'
+            : 'Failed after $_maxRetries retries';
+        print(errorMsg);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Server error: ${response.statusCode}')),
+          SnackBar(content: Text(errorMsg)),
         );
       }
     } catch (e) {
@@ -107,13 +167,13 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
       );
     } finally {
       setState(() {
-        _isProcessing = false;
+        _isProcessing = false; // Always reset
       });
     }
   }
 
   void startPolling() {
-    _pollingTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+    _pollingTimer = Timer.periodic(const Duration(milliseconds: 2000), (timer) {
       fetchDetectionResults();
     });
   }
@@ -129,7 +189,6 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Row(
               children: [
-                // Camera feed (left side)
                 Expanded(
                   flex: 2,
                   child: Stack(
@@ -140,7 +199,6 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
                     ],
                   ),
                 ),
-                // Chat-like layout (right side)
                 Expanded(
                   flex: 1,
                   child: Container(
@@ -159,7 +217,7 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
                         const SizedBox(height: 8),
                         Expanded(
                           child: ListView.builder(
-                            reverse: true, // Newest signs at bottom
+                            reverse: true,
                             itemCount: detectedSigns.length,
                             itemBuilder: (context, index) {
                               final signData = detectedSigns[
