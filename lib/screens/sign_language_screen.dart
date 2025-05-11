@@ -16,15 +16,13 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
   CameraController? _cameraController;
   List<Map<String, dynamic>> detectedSigns = [];
   bool _isProcessing = false;
+  bool _isPollingPaused = false;
   Timer? _pollingTimer;
-  int _retryCount = 0;
-  static const int _maxRetries = 2;
 
   @override
   void initState() {
     super.initState();
     initializeCamera();
-    warmUpApi();
     startPolling();
   }
 
@@ -32,55 +30,29 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
     try {
       final cameras = await availableCameras();
       if (cameras.isNotEmpty) {
-        CameraDescription? frontCamera;
-        for (var camera in cameras) {
-          if (camera.lensDirection == CameraLensDirection.front) {
-            frontCamera = camera;
-            break;
-          }
-        }
-        _cameraController = CameraController(
-          frontCamera ?? cameras[0],
-          ResolutionPreset.medium,
-        );
+        _cameraController =
+            CameraController(cameras[0], ResolutionPreset.medium);
         await _cameraController!.initialize();
-        print('Camera initialized: ${_cameraController!.value.isInitialized}, '
-            'LensDirection: ${_cameraController!.description.lensDirection}');
         setState(() {});
       } else {
-        print('No cameras found');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No cameras found')),
         );
       }
     } catch (e) {
-      print('Camera initialization failed: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Camera initialization failed: $e')),
       );
     }
   }
 
-  Future<void> warmUpApi() async {
-    try {
-      final response = await http
-          .get(Uri.parse('https://sign-language-api-a443.onrender.com'))
-          .timeout(
-            const Duration(seconds: 45),
-            onTimeout: () => http.Response('Timeout', 408),
-          );
-      print('Warm-up request status: ${response.statusCode}');
-    } catch (e) {
-      print('Warm-up request failed: $e');
-    }
-  }
-
   Future<void> fetchDetectionResults() async {
     if (_isProcessing ||
+        _isPollingPaused ||
         _cameraController == null ||
         !_cameraController!.value.isInitialized) {
       print(
-          'Skipping detection: Processing=$_isProcessing, CameraInitialized=${_cameraController?.value.isInitialized}');
+          'Skipping detection: Processing=$_isProcessing, Paused=$_isPollingPaused, CameraInitialized=${_cameraController?.value.isInitialized}');
       return;
     }
 
@@ -89,50 +61,21 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
     });
 
     try {
-      // Capture frame
       final image = await _cameraController!.takePicture();
       final bytes = await image.readAsBytes();
       print('Captured image size: ${bytes.length} bytes');
 
-      // Show loading indicator
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Detecting sign...')),
+      final url = 'http://192.168.1.14:5000/detect';
+      final response = await http.post(
+        Uri.parse(url),
+        body: bytes,
+        headers: {'Content-Type': 'image/jpeg'},
       );
 
-      // Send frame to server with retries
-      bool success = false;
-      int attempt = 0;
-      http.Response? response;
-      while (attempt <= _maxRetries && !success) {
-        try {
-          final url = 'https://sign-language-api-a443.onrender.com/detect';
-          response = await http.post(
-            Uri.parse(url),
-            body: bytes,
-            headers: {'Content-Type': 'image/jpeg'},
-          ).timeout(
-            const Duration(seconds: 45),
-            onTimeout: () {
-              throw TimeoutException(
-                  'API request timed out (attempt ${attempt + 1})');
-            },
-          );
-          success = response.statusCode == 200;
-        } catch (e) {
-          print('Attempt ${attempt + 1} failed: $e');
-          attempt++;
-          if (attempt <= _maxRetries) {
-            await Future.delayed(const Duration(seconds: 2));
-          }
-        }
-      }
+      print('Server response status: ${response.statusCode}');
+      print('Server response body: ${response.body}');
 
-      // Hide loading indicator
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-      if (success && response != null) {
-        print('Server response status: ${response.statusCode}');
-        print('Server response body: ${response.body}');
+      if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         print('Parsed response data: $data');
         setState(() {
@@ -149,15 +92,11 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
             }
           }
           print('Added sign: $newSign, confidence: $confidence');
-          _retryCount = 0; // Reset retries on success
         });
       } else {
-        final errorMsg = response != null
-            ? 'Server error: ${response.statusCode}'
-            : 'Failed after $_maxRetries retries';
-        print(errorMsg);
+        print('Server error: ${response.statusCode}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMsg)),
+          SnackBar(content: Text('Server error: ${response.statusCode}')),
         );
       }
     } catch (e) {
@@ -167,110 +106,384 @@ class _SignLanguageScreenState extends State<SignLanguageScreen> {
       );
     } finally {
       setState(() {
-        _isProcessing = false; // Always reset
+        _isProcessing = false;
       });
     }
   }
 
   void startPolling() {
-    _pollingTimer = Timer.periodic(const Duration(milliseconds: 2000), (timer) {
+    _pollingTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
       fetchDetectionResults();
+    });
+  }
+
+  void togglePolling() {
+    setState(() {
+      _isPollingPaused = !_isPollingPaused;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    print('Rendering UI: detectedSigns=${detectedSigns.length}');
+    const primaryColor = Color(0xFF199A8E);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Sign Language Detection'),
-      ),
-      body: _cameraController == null || !_cameraController!.value.isInitialized
-          ? const Center(child: CircularProgressIndicator())
-          : Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: Stack(
-                    children: [
-                      CameraPreview(_cameraController!),
-                      if (_isProcessing)
-                        const Center(child: CircularProgressIndicator()),
-                    ],
+      backgroundColor: Colors.white,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          bool isWideScreen = constraints.maxWidth > 800;
+          return Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24.0),
+                color: primaryColor,
+                child: Text(
+                  'Sign Language Detection',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
-                Expanded(
-                  flex: 1,
-                  child: Container(
-                    color: Colors.grey[200],
-                    padding: const EdgeInsets.all(8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Detected Signs',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: ListView.builder(
-                            reverse: true,
-                            itemCount: detectedSigns.length,
-                            itemBuilder: (context, index) {
-                              final signData = detectedSigns[
-                                  detectedSigns.length - 1 - index];
-                              final sign = signData['sign'];
-                              final confidence = signData['confidence'];
-                              final timestamp =
-                                  signData['timestamp'] as DateTime;
-                              return Container(
-                                margin: const EdgeInsets.symmetric(vertical: 4),
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.grey.withOpacity(0.2),
-                                      spreadRadius: 1,
-                                      blurRadius: 3,
+              ),
+              // Main Content
+              Expanded(
+                child: _cameraController == null ||
+                        !_cameraController!.value.isInitialized
+                    ? Center(
+                        child: CircularProgressIndicator(color: primaryColor),
+                      )
+                    : isWideScreen
+                        ? Row(
+                            children: [
+                              // Camera Feed (Left)
+                              Expanded(
+                                flex: 3,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24.0),
+                                  child: Card(
+                                    elevation: 4,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(color: primaryColor),
                                     ),
-                                  ],
+                                    child: Stack(
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          child:
+                                              CameraPreview(_cameraController!),
+                                        ),
+                                        if (_isProcessing)
+                                          Center(
+                                            child: CircularProgressIndicator(
+                                              color: primaryColor,
+                                              strokeWidth: 6,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      sign,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
+                              ),
+                              // Detected Signs (Right)
+                              Expanded(
+                                flex: 2,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24.0),
+                                  child: Card(
+                                    elevation: 4,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.all(16.0),
+                                          child: Text(
+                                            'Detected Signs',
+                                            style: TextStyle(
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.bold,
+                                              color: primaryColor,
+                                            ),
+                                          ),
+                                        ),
+                                        // Control Bar
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 16.0),
+                                          child: ElevatedButton.icon(
+                                            onPressed: togglePolling,
+                                            icon: Icon(
+                                              _isPollingPaused
+                                                  ? Icons.play_arrow
+                                                  : Icons.pause,
+                                              color: Colors.white,
+                                            ),
+                                            label: Text(
+                                              _isPollingPaused
+                                                  ? 'Resume Detection'
+                                                  : 'Pause Detection',
+                                              style: TextStyle(
+                                                  color: Colors.white),
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: primaryColor,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 12,
+                                                      horizontal: 16),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Expanded(
+                                          child: ListView.builder(
+                                            padding: const EdgeInsets.all(16.0),
+                                            itemCount: detectedSigns.length,
+                                            itemBuilder: (context, index) {
+                                              final signData =
+                                                  detectedSigns[index];
+                                              final sign = signData['sign'];
+                                              final confidence =
+                                                  signData['confidence'];
+                                              final timestamp =
+                                                  signData['timestamp']
+                                                      as DateTime;
+                                              return AnimatedOpacity(
+                                                opacity: 1.0,
+                                                duration:
+                                                    Duration(milliseconds: 300),
+                                                child: Container(
+                                                  margin: const EdgeInsets
+                                                      .symmetric(vertical: 8.0),
+                                                  padding: const EdgeInsets.all(
+                                                      12.0),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                    border: Border.all(
+                                                        color: primaryColor
+                                                            .withOpacity(0.2)),
+                                                  ),
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        sign,
+                                                        style: TextStyle(
+                                                          fontSize: 18,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: primaryColor,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        'Confidence: ${(confidence * 100).toStringAsFixed(2)}%',
+                                                        style: TextStyle(
+                                                            fontSize: 14,
+                                                            color: Colors
+                                                                .grey[600]),
+                                                      ),
+                                                      Text(
+                                                        '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}',
+                                                        style: TextStyle(
+                                                            fontSize: 12,
+                                                            color: Colors
+                                                                .grey[600]),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Column(
+                            children: [
+                              // Camera Feed (Top)
+                              Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: Card(
+                                  elevation: 4,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: BorderSide(color: primaryColor),
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child:
+                                            CameraPreview(_cameraController!),
                                       ),
-                                    ),
-                                    Text(
-                                      'Confidence: ${(confidence * 100).toStringAsFixed(2)}%',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                    Text(
-                                      '${timestamp.hour}:${timestamp.minute}:${timestamp.second}',
-                                      style: const TextStyle(
-                                          fontSize: 12, color: Colors.grey),
-                                    ),
-                                  ],
+                                      if (_isProcessing)
+                                        Center(
+                                          child: CircularProgressIndicator(
+                                            color: primaryColor,
+                                            strokeWidth: 6,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ),
-                              );
-                            },
+                              ),
+                              // Detected Signs (Bottom)
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24.0),
+                                  child: Card(
+                                    elevation: 4,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.all(16.0),
+                                          child: Text(
+                                            'Detected Signs',
+                                            style: TextStyle(
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.bold,
+                                              color: primaryColor,
+                                            ),
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 16.0),
+                                          child: ElevatedButton.icon(
+                                            onPressed: togglePolling,
+                                            icon: Icon(
+                                              _isPollingPaused
+                                                  ? Icons.play_arrow
+                                                  : Icons.pause,
+                                              color: Colors.white,
+                                            ),
+                                            label: Text(
+                                              _isPollingPaused
+                                                  ? 'Resume Detection'
+                                                  : 'Pause Detection',
+                                              style: TextStyle(
+                                                  color: Colors.white),
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: primaryColor,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 12,
+                                                      horizontal: 16),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Expanded(
+                                          child: ListView.builder(
+                                            padding: const EdgeInsets.all(16.0),
+                                            itemCount: detectedSigns.length,
+                                            itemBuilder: (context, index) {
+                                              final signData =
+                                                  detectedSigns[index];
+                                              final sign = signData['sign'];
+                                              final confidence =
+                                                  signData['confidence'];
+                                              final timestamp =
+                                                  signData['timestamp']
+                                                      as DateTime;
+                                              return AnimatedOpacity(
+                                                opacity: 1.0,
+                                                duration:
+                                                    Duration(milliseconds: 300),
+                                                child: Container(
+                                                  margin: const EdgeInsets
+                                                      .symmetric(vertical: 8.0),
+                                                  padding: const EdgeInsets.all(
+                                                      12.0),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                    border: Border.all(
+                                                        color: primaryColor
+                                                            .withOpacity(0.2)),
+                                                  ),
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        sign,
+                                                        style: TextStyle(
+                                                          fontSize: 18,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: primaryColor,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        'Confidence: ${(confidence * 100).toStringAsFixed(2)}%',
+                                                        style: TextStyle(
+                                                            fontSize: 14,
+                                                            color: Colors
+                                                                .grey[600]),
+                                                      ),
+                                                      Text(
+                                                        '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}',
+                                                        style: TextStyle(
+                                                            fontSize: 12,
+                                                            color: Colors
+                                                                .grey[600]),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 

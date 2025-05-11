@@ -1,66 +1,103 @@
 import os
+import sys
+import argparse
+import time
 import cv2
 import numpy as np
-from flask import Flask, request
-from flask_cors import CORS
 from ultralytics import YOLO
-import logging
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": ["http://localhost:*"]}})
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Global variables
+model = None
+labels = None
+min_thresh = 0.5
 
-# Load YOLO model
-try:
-    model = YOLO(os.environ.get('MODEL_PATH', 'my_model.pt'), task='detect')
-    model.to('cpu')  # Force CPU
-    logger.info(f"Model loaded successfully: {model.names}")
-except Exception as e:
-    logger.error(f"Failed to load model: {e}")
-    raise
-
+# Detection endpoint for web clients
 @app.route('/detect', methods=['POST'])
 def detect():
     try:
-        # Read image
-        file = request.get_data()
-        nparr = np.frombuffer(file, np.uint8)
+        # Get image data from request
+        if 'image' not in request.files and not request.get_data():
+            return jsonify({"error": "No image data provided"}), 400
+
+        # Handle image file upload or raw data
+        if 'image' in request.files:
+            file = request.files['image']
+            nparr = np.frombuffer(file.read(), np.uint8)
+        else:
+            nparr = np.frombuffer(request.get_data(), np.uint8)
+
+        # Decode image
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        logger.info(f"Original frame shape: {frame.shape}, size: {frame.size}")
+        if frame is None:
+            print('Failed to decode image')  # Debug
+            return jsonify({"error": "Invalid image data"}), 400
 
-        # Resize to 320x320
-        frame = cv2.resize(frame, (320, 320))
-        logger.info(f"Resized frame shape: {frame.shape}")
+        # Log frame details
+        print(f'Frame shape: {frame.shape}, size: {frame.size}')  # Debug
 
-        # Perform detection
-        min_thresh = float(os.environ.get('MIN_THRESH', 0.3))
-        results = model(frame, verbose=False, device='cpu', conf=min_thresh)
-        sign = ""
-        confidence = 0.0
+        # Resize frame to match local script (e.g., 640x480)
+        frame = cv2.resize(frame, (640, 480))
 
-        # Process results
-        for result in results:
-            if result.boxes:
-                max_conf = result.boxes.conf.max().item()
-                if max_conf >= min_thresh:
-                    class_id = result.boxes.cls[result.boxes.conf.argmax()].item()
-                    sign = model.names[class_id]
-                    confidence = max_conf
+        # Perform inference
+        results = model(frame, verbose=False)
+        detections = results[0].boxes
+        print(f'Number of detections: {len(detections)}')  # Debug
 
-        response = {
-            "sign": sign,
-            "confidence": confidence,
-            "timestamp": os.times()[4]
-        }
-        logger.info(f"Detection response: {response}")
-        return response
+        # Process detections
+        for i in range(len(detections)):
+            conf = detections[i].conf.item()
+            classidx = int(detections[i].cls.item())
+            classname = labels[classidx]
+            print(f'Detection {i}: Class={classname}, Confidence={conf}')  # Debug
+            if conf > min_thresh:
+                print(f'Returning sign: {classname}, confidence: {conf}')  # Debug
+                return jsonify({
+                    "sign": classname,
+                    "confidence": conf,
+                    "timestamp": time.time()
+                })
+
+        print('No detections above threshold')  # Debug
+        return jsonify({
+            "sign": "",
+            "confidence": 0.0,
+            "timestamp": time.time()
+        })
+
     except Exception as e:
-        logger.error(f"Detection error: {e}")
-        return {"error": str(e)}, 500
+        print(f'Error in detect: {e}')  # Debug
+        return jsonify({"error": str(e)}), 500
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', help='Path to YOLO model file', required=True)
+    parser.add_argument('--thresh', help='Minimum confidence threshold', default=0.5)
+    parser.add_argument('--port', help='Port for Flask server', default=5000, type=int)
+    args = parser.parse_args()
+    return args
+
+if __name__ == "__main__":
+    # Parse arguments
+    args = parse_args()
+    model_path = args.model
+    min_thresh = float(args.thresh)
+    port = args.port
+
+    # Check if model file exists
+    if not os.path.exists(model_path):
+        print(f'ERROR: Model path {model_path} is invalid or not found.')
+        sys.exit(1)
+
+    # Load the model
+    model = YOLO(model_path, task='detect')
+    labels = model.names
+    print(f'Model labels: {labels}')  # Debug labels
+
+    # Start Flask server
+    print(f'Starting Flask server on port {port}...')
+    app.run(host='0.0.0.0', port=port, debug=False)
