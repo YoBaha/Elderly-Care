@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Load YOLO model
 try:
-    model = YOLO(os.environ.get('MODEL_PATH', 'path/to/your/model.pt'), task='detect')
+    model = YOLO(os.environ.get('MODEL_PATH', 'C:\Users\bahab\Downloads\elederlycaref\ElderlyCare-user\ElderlyCare-user\my_model.pt'), task='detect')
     model.to('cpu')  # Force CPU
     logger.info(f"Model loaded successfully: {model.names}")
 except Exception as e:
